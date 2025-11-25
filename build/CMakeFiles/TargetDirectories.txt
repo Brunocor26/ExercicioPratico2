@@ -1,0 +1,3 @@
+/Users/joaodias/Documents/Docencia/Computação Gráfica/Lab01/01-gettingstarted-lab/exercise045/build/CMakeFiles/ex45.dir
+/Users/joaodias/Documents/Docencia/Computação Gráfica/Lab01/01-gettingstarted-lab/exercise045/build/CMakeFiles/edit_cache.dir
+/Users/joaodias/Documents/Docencia/Computação Gráfica/Lab01/01-gettingstarted-lab/exercise045/build/CMakeFiles/rebuild_cache.dir

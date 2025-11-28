@@ -1,3 +1,0 @@
-/home/brunocor/3Ano/CG/ExercicioPrtico2/CMakeFiles/tp2.dir
-/home/brunocor/3Ano/CG/ExercicioPrtico2/CMakeFiles/edit_cache.dir
-/home/brunocor/3Ano/CG/ExercicioPrtico2/CMakeFiles/rebuild_cache.dir

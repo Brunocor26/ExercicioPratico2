@@ -46,12 +46,19 @@ else()
 endif()
 
 # Copiar shaders/ para a build
-set(SHADERS_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
-set(SHADERS_DST_DIR ${CMAKE_CURRENT_BINARY_DIR}/shaders)
 add_custom_command(TARGET tp2 POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          ${SHADERS_SRC_DIR} ${SHADERS_DST_DIR}
-  COMMENT "A copiar pasta 'shaders/' para a build..."
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/shaders
+    ${CMAKE_BINARY_DIR}/shaders
+    COMMENT "A copiar pasta 'shaders/' para a build..."
+)
+
+# Copiar deer.obj para a diretoria de build
+add_custom_command(TARGET tp2 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/deer.obj
+    ${CMAKE_BINARY_DIR}/deer.obj
+    COMMENT "A copiar 'deer.obj' para a build..."
 )
 
 set_target_properties(tp2 PROPERTIES

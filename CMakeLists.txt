@@ -9,27 +9,25 @@ list(APPEND CMAKE_PREFIX_PATH /opt/homebrew /opt/homebrew/lib/cmake)
 
 # Dependências
 find_package(glfw3 REQUIRED)   # alvo: glfw
-find_package(GLEW  REQUIRED)   # GLEW_INCLUDE_DIRS / GLEW_LIBRARIES
+# find_package(GLEW  REQUIRED)   # GLEW removido em favor do GLAD
 
 # Executável
 add_executable(tp2
   src/main.cpp
-  src/shader.cpp
   src/objloader.cpp
+  src/glad.c
 )
+
+configure_file(configuration/root_directory.h.in configuration/root_directory.h)
 
 # Includes do projeto (para "common/shader.hpp") e objloader.hpp
 target_include_directories(tp2 PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/common
+  ${CMAKE_CURRENT_BINARY_DIR}/configuration
 )
 
-# GLEW
-if (TARGET GLEW::GLEW)
-  target_link_libraries(tp2 PRIVATE GLEW::GLEW)
-else()
-  target_include_directories(tp2 PRIVATE ${GLEW_INCLUDE_DIRS})
-  target_link_libraries(tp2 PRIVATE ${GLEW_LIBRARIES})
-endif()
+# GLAD (via source file included above)
+target_link_libraries(tp2 PRIVATE dl) # dl is needed for glad on Linux
 
 # GLFW
 target_link_libraries(tp2 PRIVATE glfw)
@@ -59,6 +57,14 @@ add_custom_command(TARGET tp2 POST_BUILD
     ${CMAKE_SOURCE_DIR}/deer.obj
     ${CMAKE_BINARY_DIR}/deer.obj
     COMMENT "A copiar 'deer.obj' para a build..."
+)
+
+# Copiar deer.mtl para a diretoria de build
+add_custom_command(TARGET tp2 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/deer.mtl
+    ${CMAKE_BINARY_DIR}/deer.mtl
+    COMMENT "A copiar 'deer.mtl' para a build..."
 )
 
 set_target_properties(tp2 PROPERTIES

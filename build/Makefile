@@ -129,6 +129,30 @@ tp2/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/build
 .PHONY : tp2/fast
 
+src/glad.o: src/glad.c.o
+.PHONY : src/glad.o
+
+# target to build an object file
+src/glad.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/glad.c.o
+.PHONY : src/glad.c.o
+
+src/glad.i: src/glad.c.i
+.PHONY : src/glad.i
+
+# target to preprocess a source file
+src/glad.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/glad.c.i
+.PHONY : src/glad.c.i
+
+src/glad.s: src/glad.c.s
+.PHONY : src/glad.s
+
+# target to generate assembly for a file
+src/glad.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/glad.c.s
+.PHONY : src/glad.c.s
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -177,30 +201,6 @@ src/objloader.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/objloader.cpp.s
 .PHONY : src/objloader.cpp.s
 
-src/shader.o: src/shader.cpp.o
-.PHONY : src/shader.o
-
-# target to build an object file
-src/shader.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/shader.cpp.o
-.PHONY : src/shader.cpp.o
-
-src/shader.i: src/shader.cpp.i
-.PHONY : src/shader.i
-
-# target to preprocess a source file
-src/shader.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/shader.cpp.i
-.PHONY : src/shader.cpp.i
-
-src/shader.s: src/shader.cpp.s
-.PHONY : src/shader.s
-
-# target to generate assembly for a file
-src/shader.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/tp2.dir/build.make CMakeFiles/tp2.dir/src/shader.cpp.s
-.PHONY : src/shader.cpp.s
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -210,15 +210,15 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... tp2"
+	@echo "... src/glad.o"
+	@echo "... src/glad.i"
+	@echo "... src/glad.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
 	@echo "... src/objloader.o"
 	@echo "... src/objloader.i"
 	@echo "... src/objloader.s"
-	@echo "... src/shader.o"
-	@echo "... src/shader.i"
-	@echo "... src/shader.s"
 .PHONY : help
 
 

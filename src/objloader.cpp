@@ -3,11 +3,84 @@
 #include <cstdio>
 #include <string>
 
-// função que lê ficheiro .obj e devolve listas de vértices, uvs e normais
+// Carrega ficheiro .mtl (Material Template Library)
+bool loadMTL(
+    const char *path,
+    std::map<std::string, Material> &out_materials)
+{
+    FILE *file = fopen(path, "r");
+    if (file == NULL)
+    {
+        printf("Warning: Could not open material file (%s)\n", path);
+        return false;
+    }
+
+    std::string currentMaterialName;
+    Material currentMaterial = {{0.2f, 0.2f, 0.2f}, {0.8f, 0.8f, 0.8f}, {0.5f, 0.5f, 0.5f}, 32.0f, 1.0f};
+
+    while (1)
+    {
+        char lineHeader[256];
+        int res = fscanf(file, "%s", lineHeader);
+        if (res == EOF)
+            break;
+
+        // Definir novo material
+        if (strcmp(lineHeader, "newmtl") == 0)
+        {
+            if (!currentMaterialName.empty())
+                out_materials[currentMaterialName] = currentMaterial;
+            
+            char matName[256];
+            fscanf(file, "%s\n", matName);
+            currentMaterialName = matName;
+            currentMaterial = {{0.2f, 0.2f, 0.2f}, {0.8f, 0.8f, 0.8f}, {0.5f, 0.5f, 0.5f}, 32.0f, 1.0f};
+        }
+        // Ambient color
+        else if (strcmp(lineHeader, "Ka") == 0)
+        {
+            fscanf(file, "%f %f %f\n", &currentMaterial.Ka.x, &currentMaterial.Ka.y, &currentMaterial.Ka.z);
+        }
+        // Diffuse color
+        else if (strcmp(lineHeader, "Kd") == 0)
+        {
+            fscanf(file, "%f %f %f\n", &currentMaterial.Kd.x, &currentMaterial.Kd.y, &currentMaterial.Kd.z);
+        }
+        // Specular color
+        else if (strcmp(lineHeader, "Ks") == 0)
+        {
+            fscanf(file, "%f %f %f\n", &currentMaterial.Ks.x, &currentMaterial.Ks.y, &currentMaterial.Ks.z);
+        }
+        // Shininess
+        else if (strcmp(lineHeader, "Ns") == 0)
+        {
+            fscanf(file, "%f\n", &currentMaterial.Ns);
+        }
+        // Dissolve (transparency)
+        else if (strcmp(lineHeader, "d") == 0)
+        {
+            fscanf(file, "%f\n", &currentMaterial.d);
+        }
+        // Ignore other fields (like texture maps)
+        else
+        {
+            char dummy[1024];
+            fgets(dummy, sizeof(dummy), file);
+        }
+    }
+
+    // Add last material
+    if (!currentMaterialName.empty())
+        out_materials[currentMaterialName] = currentMaterial;
+
+    fclose(file);
+    return true;
+}
+
+// função que lê ficheiro .obj e devolve listas de vértices e normais
 bool loadOBJ(
     const char *path,
     std::vector<glm::vec3> &out_vertices,
-    std::vector<glm::vec2> &out_uvs,
     std::vector<glm::vec3> &out_normals)
 {
     // listas temporárias (armazenam tudo que for lido)
@@ -116,13 +189,13 @@ bool loadOBJ(
         glm::vec3 vertex = temp_vertices[vertexIndex - 1]; // -1 porque .obj começa em 1
         out_vertices.push_back(vertex);
 
-        unsigned int uvIndex = uvIndices[i];
-        glm::vec2 uv = temp_uvs[uvIndex - 1];
-        out_uvs.push_back(uv);
-
         unsigned int normalIndex = normalIndices[i];
-        glm::vec3 normal = temp_normals[normalIndex - 1];
-        out_normals.push_back(normal);
+        if (normalIndex != 0 && normalIndex <= temp_normals.size()) {
+            glm::vec3 normal = temp_normals[normalIndex - 1];
+            out_normals.push_back(normal);
+        } else {
+            out_normals.push_back(glm::vec3(0, 1, 0)); // Default normal
+        }
     }
 
     // fechar ficheiro

@@ -1,125 +1,117 @@
-
 #include "Mesh.hpp"
 #include "objloader.hpp"
-#include "shader.hpp"
-#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <learnopengl/camera.h>
+#include <learnopengl/filesystem.h>
+#include <learnopengl/shader.h>
+#include <learnopengl/transform.h>
 #include <vector>
 
-// Estrutura que guarda o estado dos inputs
-struct InputState {
-  bool rotating = false;
-  double lastX = 0, lastY = 0;
-  float yaw = 0.0f, pitch = 0.0f;
-  glm::vec3 trans = glm::vec3(0.0f);
-  float lightRotationSpeed = 1.0f;
-  bool lightPaused = false;
-  float lightAngle = 0.0f;
-  bool wireframe = false;
+// Camera setup
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
+float lastX = 900.0f / 2.0;
+float lastY = 600.0f / 2.0;
+bool firstMouse = true;
+float deltaTime = 0.0f;
+float lastFrame = 0.0f;
 
-  // Estado para os botões (toggle)
+// Store all user input states (mouse, keyboard)
+struct InputState {
+  float lightRotationSpeed = 1.0f; // Speed of light orbiting
+  bool lightPaused = false;        // Is light rotation paused?
+  float lightAngle = 0.0f;         // Current light position angle
+  bool wireframe = false;          // Show wireframe mode?
+  bool blinn = false;              // Blinn-Phong lighting?
+
+  // Store if key was pressed (prevents repeated triggers)
   bool spacePressed = false;
   bool plusPressed = false;
   bool minusPressed = false;
   bool rPressed = false;
   bool fPressed = false;
+  bool bPressed = false;
 };
 
-// Processa os inputs do utilizador (teclado e rato)
+// Transform for the model
+Transform modelTransform;
+
+// Read keyboard and mouse input and update the InputState
 void processInput(GLFWwindow *window, InputState &input) {
-  // Sair com ESC
+  // Close window if ESC is pressed
   if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
     glfwSetWindowShouldClose(window, true);
 
-  // Rotação com o Rato
-  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-    double x, y;
-    glfwGetCursorPos(window, &x, &y);
-    if (!input.rotating) {
-      input.lastX = x;
-      input.lastY = y;
-      input.rotating = true;
-    }
-    double dx = x - input.lastX;
-    double dy = y - input.lastY;
-    input.yaw += float(dx) * 0.005f;
-    input.pitch += float(dy) * 0.005f;
-    input.lastX = x;
-    input.lastY = y;
-  } else {
-    input.rotating = false;
-  }
+  // Camera movement
+  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    camera.ProcessKeyboard(FORWARD, deltaTime);
+  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    camera.ProcessKeyboard(BACKWARD, deltaTime);
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+    camera.ProcessKeyboard(LEFT, deltaTime);
+  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    camera.ProcessKeyboard(RIGHT, deltaTime);
 
-  // Movimento da câmera
-  float step = 0.05f;
-  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS ||
-      glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-    input.trans.y += step;
-  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ||
-      glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-    input.trans.y -= step;
-  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS ||
-      glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-    input.trans.x -= step;
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS ||
-      glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-    input.trans.x += step;
-  if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS ||
-      glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
-    input.trans.z += step;
-  if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS ||
-      glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
-    input.trans.z -= step;
+  // Model rotation with arrow keys (using Transform)
+  glm::vec3 currentRot = modelTransform.getLocalRotation();
+  float rotSpeed = 50.0f * deltaTime;
+  if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+    currentRot.x -= rotSpeed;
+  if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+    currentRot.x += rotSpeed;
+  if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+    currentRot.y -= rotSpeed;
+  if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+    currentRot.y += rotSpeed;
+  modelTransform.setLocalRotation(currentRot);
 
-  // Pausar Luz (Espaço)
+  // Pause/unpause light rotation with SPACE
   if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
     if (!input.spacePressed) {
       input.lightPaused = !input.lightPaused;
-      std::printf("Rotação da luz: %s\n",
-                  input.lightPaused ? "PARADA" : "A RODAR");
+      std::printf("Light rotation: %s\n",
+                  input.lightPaused ? "PAUSED" : "RUNNING");
       input.spacePressed = true;
     }
   } else {
     input.spacePressed = false;
   }
 
-  // Aumentar Velocidade da Luz (+)
+  // Increase light rotation speed with + key
   bool plus = (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS ||
                glfwGetKey(window, GLFW_KEY_KP_ADD) == GLFW_PRESS);
   if (plus) {
     if (!input.plusPressed) {
       input.lightRotationSpeed += 0.5f;
-      std::printf("Velocidade de rotação da luz: %.1f\n",
-                  input.lightRotationSpeed);
+      std::printf("Light rotation speed: %.1f\n", input.lightRotationSpeed);
       input.plusPressed = true;
     }
   } else {
     input.plusPressed = false;
   }
 
-  // Diminuir Velocidade da Luz (-)
+  // Decrease light rotation speed with - key
   bool minus = (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS ||
                 glfwGetKey(window, GLFW_KEY_KP_SUBTRACT) == GLFW_PRESS);
   if (minus) {
     if (!input.minusPressed) {
       input.lightRotationSpeed =
           std::max(0.0f, input.lightRotationSpeed - 0.5f);
-      std::printf("Velocidade de rotação da luz: %.1f\n",
-                  input.lightRotationSpeed);
+      std::printf("Light rotation speed: %.1f\n", input.lightRotationSpeed);
       input.minusPressed = true;
     }
   } else {
     input.minusPressed = false;
   }
 
-  // Alternar Wireframe (F)
+  // Toggle wireframe mode with F key
   if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
     if (!input.fPressed) {
       input.wireframe = !input.wireframe;
@@ -135,18 +127,29 @@ void processInput(GLFWwindow *window, InputState &input) {
     input.fPressed = false;
   }
 
-  // Reiniciar Estado (R)
+  // Toggle Blinn-Phong with B key
+  if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
+    if (!input.bPressed) {
+      input.blinn = !input.blinn;
+      std::printf("Blinn-Phong: %s\n", input.blinn ? "ON" : "OFF");
+      input.bPressed = true;
+    }
+  } else {
+    input.bPressed = false;
+  }
+
+  // Reset everything to initial state with R key
   if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
     if (!input.rPressed) {
       input.lightRotationSpeed = 1.0f;
-      input.trans = glm::vec3(0.0f);
-      input.yaw = 0.0f;
-      input.pitch = 0.0f;
       input.lightPaused = false;
       input.lightAngle = 0.0f;
       input.wireframe = false;
+      input.blinn = false;
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      std::printf("Estado reiniciado: Posição, Rotação, Luz, Wireframe\n");
+      camera = Camera(glm::vec3(0.0f, 0.0f, 3.0f));     // Reset camera
+      modelTransform.setLocalRotation(glm::vec3(0.0f)); // Reset rotation
+      std::printf("State reset: Position, Rotation, Light, Wireframe, Blinn\n");
       input.rPressed = true;
     }
   } else {
@@ -154,7 +157,30 @@ void processInput(GLFWwindow *window, InputState &input) {
   }
 }
 
-// inicializa a janela
+// Mouse callback
+void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
+  if (firstMouse) {
+    lastX = xpos;
+    lastY = ypos;
+    firstMouse = false;
+  }
+
+  float xoffset = xpos - lastX;
+  float yoffset =
+      lastY - ypos; // reversed since y-coordinates go from bottom to top
+
+  lastX = xpos;
+  lastY = ypos;
+
+  camera.ProcessMouseMovement(xoffset, yoffset);
+}
+
+// Scroll callback
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+  camera.ProcessMouseScroll(yoffset);
+}
+
+// Create and setup OpenGL window with GLFW and GLAD
 GLFWwindow *initWindow(int width, int height, const char *title) {
   if (!glfwInit()) {
     std::fprintf(stderr, "GLFW init falhou\n");
@@ -173,13 +199,16 @@ GLFWwindow *initWindow(int width, int height, const char *title) {
     return nullptr;
   }
   glfwMakeContextCurrent(win);
+  glfwSetCursorPosCallback(win, mouse_callback);
+  glfwSetScrollCallback(win, scroll_callback);
 
-  glewExperimental = GL_TRUE;
-  if (glewInit() != GLEW_OK) {
-    std::fprintf(stderr, "glewInit falhou\n");
+  // Tell GLFW to capture our mouse
+  glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+  if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    std::fprintf(stderr, "Failed to initialize GLAD\n");
     return nullptr;
   }
-  glGetError();
 
   glfwSetFramebufferSizeCallback(
       win, [](GLFWwindow *, int w, int h) { glViewport(0, 0, w, h); });
@@ -187,15 +216,38 @@ GLFWwindow *initWindow(int width, int height, const char *title) {
   return win;
 }
 
-// Carrega o modelo 3D do veado e retorna um objeto Mesh
-Mesh *setupDeerMesh(const char *filename, float &baseScale, glm::vec3 &center) {
+// Load deer 3D model: read OBJ file, load material from MTL file,
+// calculate size and position, return Mesh object
+Mesh *setupDeerMesh(const char *filename, float &baseScale, glm::vec3 &center,
+                    Material &outMaterial) {
+  std::string fullPath = FileSystem::getPath(filename);
   std::vector<glm::vec3> positions;
-  std::vector<glm::vec2> uvs;
   std::vector<glm::vec3> normals;
-  bool res = loadOBJ(filename, positions, uvs, normals);
+  bool res = loadOBJ(fullPath.c_str(), positions, normals);
   if (!res) {
-    std::fprintf(stderr, "Impossível abrir %s ou processá-lo\n", filename);
+    std::fprintf(stderr, "Impossível abrir %s ou processá-lo\n",
+                 fullPath.c_str());
     return nullptr;
+  }
+
+  // Try to load material file (.mtl) that matches the .obj file
+  std::string mtlPath = fullPath;
+  size_t dotPos = mtlPath.find_last_of('.');
+  if (dotPos != std::string::npos) {
+    mtlPath = mtlPath.substr(0, dotPos) + ".mtl";
+  }
+  std::map<std::string, Material> materials;
+  if (loadMTL(mtlPath.c_str(), materials)) {
+    // Usar o primeiro material encontrado
+    if (!materials.empty()) {
+      outMaterial = materials.begin()->second;
+      std::printf("Material carregado de %s\n", mtlPath.c_str());
+    }
+  } else {
+    std::printf("Ficheiro .mtl não encontrado em %s, usando material padrão\n",
+                mtlPath.c_str());
+    outMaterial = {glm::vec3(0.2f, 0.2f, 0.2f), glm::vec3(0.6f, 0.6f, 0.6f),
+                   glm::vec3(0.9f, 0.9f, 0.9f), 32.0f, 1.0f};
   }
 
   std::vector<Vertex> vertices;
@@ -221,205 +273,240 @@ Mesh *setupDeerMesh(const char *filename, float &baseScale, glm::vec3 &center) {
     extent = 1.0f;
   baseScale = 1.0f / extent;
 
-  // Usamos índices vazios por enquanto, pois loadOBJ retorna triângulos
-  // independentes
+  // Empty indices because loadOBJ returns individual triangles, not indexed
+  // geometry
   std::vector<unsigned int> indices;
   return new Mesh(vertices, indices);
 }
 
-// Cria uma esfera para representar a luz
-GLuint setupLightSphere(size_t &indexCount) {
-  std::vector<float> lightSphereVerts;
-  const int slices = 10, stacks = 10;
-  const float lightSphereRadius = 0.05f;
-  for (int i = 0; i <= stacks; ++i) {
-    float phi = M_PI * float(i) / float(stacks);
-    for (int j = 0; j <= slices; ++j) {
-      float theta = 2.0f * M_PI * float(j) / float(slices);
-      float x = lightSphereRadius * std::sin(phi) * std::cos(theta);
-      float y = lightSphereRadius * std::cos(phi);
-      float z = lightSphereRadius * std::sin(phi) * std::sin(theta);
-      lightSphereVerts.push_back(x);
-      lightSphereVerts.push_back(y);
-      lightSphereVerts.push_back(z);
-    }
-  }
+// Create a small box to show the light source position
+GLuint setupLightBox(size_t &indexCount) {
+  // 8 vertices of a cube (size 0.1 x 0.1 x 0.1)
+  std::vector<float> boxVerts = {
+      // Front face
+      -0.05f,
+      -0.05f,
+      0.05f,
+      0.05f,
+      -0.05f,
+      0.05f,
+      0.05f,
+      0.05f,
+      0.05f,
+      -0.05f,
+      0.05f,
+      0.05f,
+      // Back face
+      -0.05f,
+      -0.05f,
+      -0.05f,
+      0.05f,
+      -0.05f,
+      -0.05f,
+      0.05f,
+      0.05f,
+      -0.05f,
+      -0.05f,
+      0.05f,
+      -0.05f,
+  };
 
-  std::vector<unsigned int> lightSphereIndices;
-  for (int i = 0; i < stacks; ++i) {
-    for (int j = 0; j < slices; ++j) {
-      int first = i * (slices + 1) + j;
-      int second = first + slices + 1;
-      lightSphereIndices.push_back(first);
-      lightSphereIndices.push_back(second);
-      lightSphereIndices.push_back(first + 1);
-      lightSphereIndices.push_back(second);
-      lightSphereIndices.push_back(second + 1);
-      lightSphereIndices.push_back(first + 1);
-    }
-  }
+  // 36 indices (6 faces × 6 indices per face = 2 triangles per face)
+  std::vector<unsigned int> boxIndices = {
+      // Front face
+      0,
+      1,
+      2,
+      2,
+      3,
+      0,
+      // Back face
+      5,
+      4,
+      7,
+      7,
+      6,
+      5,
+      // Top face
+      3,
+      2,
+      6,
+      6,
+      7,
+      3,
+      // Bottom face
+      4,
+      5,
+      1,
+      1,
+      0,
+      4,
+      // Right face
+      1,
+      5,
+      6,
+      6,
+      2,
+      1,
+      // Left face
+      4,
+      0,
+      3,
+      3,
+      7,
+      4,
+  };
 
   GLuint lightVAO = 0, lightVBO = 0, lightEBO = 0;
   glGenVertexArrays(1, &lightVAO);
   glBindVertexArray(lightVAO);
   glGenBuffers(1, &lightVBO);
   glBindBuffer(GL_ARRAY_BUFFER, lightVBO);
-  glBufferData(GL_ARRAY_BUFFER, lightSphereVerts.size() * sizeof(float),
-               lightSphereVerts.data(), GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, boxVerts.size() * sizeof(float),
+               boxVerts.data(), GL_STATIC_DRAW);
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
   glEnableVertexAttribArray(0);
   glGenBuffers(1, &lightEBO);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lightEBO);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-               lightSphereIndices.size() * sizeof(unsigned int),
-               lightSphereIndices.data(), GL_STATIC_DRAW);
+               boxIndices.size() * sizeof(unsigned int), boxIndices.data(),
+               GL_STATIC_DRAW);
 
-  indexCount = lightSphereIndices.size();
+  indexCount = boxIndices.size();
   return lightVAO;
 }
 
 int main() {
+  // initialize window
   GLFWwindow *win = initWindow(900, 600, "TP2 - Rendering .obj file");
-  if (!win)
+  if (!win) // treat if error creating window
     return -1;
 
-  float baseScale = 1.0f;
-  glm::vec3 center(0.0f);
-  Mesh *deerMesh = setupDeerMesh("deer.obj", baseScale, center);
+  float baseScale = 1.0f; // How much to scale the model
+  glm::vec3 center(0.0f); // Center point of the model
+
+  // Object to store material properties (Ka, Kd, Ks, Ns)
+  Material deerMaterial;
+
+  // Load the deer 3D model from file
+  Mesh *deerMesh = setupDeerMesh("deer.obj", baseScale, center, deerMaterial);
   if (!deerMesh) {
     glfwTerminate();
     return -1;
   }
 
-  // Shaders (usar Phong)
-  GLuint prog =
-      linkProgramFromFiles("shaders/phong.vert", "shaders/phong.frag");
-  if (!prog) {
-    std::fprintf(stderr, "Shaders não compilados\n");
-    return -1;
-  }
-  glUseProgram(prog);
+  // Compile and link Phong shader program for realistic lighting using
+  // LearnOpenGL Shader class
+  Shader phongShader(FileSystem::getPath("shaders/phong.vert").c_str(),
+                     FileSystem::getPath("shaders/phong.frag").c_str());
+  Shader lightShader(FileSystem::getPath("shaders/simple.vert").c_str(),
+                     FileSystem::getPath("shaders/simple.frag").c_str());
 
-  // Localização dos Uniforms do shader Phong
-  GLint uModelView = getUniform(prog, "ModelViewMatrix");
-  GLint uNormalMat = getUniform(prog, "NormalMatrix");
-  // Nota: 'ProjectionMatrix' é declarado no shader mas não usado; ignoramos
-  // para evitar avisos.
-  GLint uMVP = getUniform(prog, "MVP");
-
-  // Membros da struct Light
-  GLint uLight_Position = getUniform(prog, "Light.Position");
-  GLint uLight_La = getUniform(prog, "Light.La");
-  GLint uLight_Ld = getUniform(prog, "Light.Ld");
-  GLint uLight_Ls = getUniform(prog, "Light.Ls");
-
-  // Membros da struct Material
-  GLint uMat_Ka = getUniform(prog, "Material.Ka");
-  GLint uMat_Kd = getUniform(prog, "Material.Kd");
-  GLint uMat_Ks = getUniform(prog, "Material.Ks");
-  GLint uMat_Shininess = getUniform(prog, "Material.Shininess");
-
-  // Definir material (estático)
-  glUniform3f(uMat_Ka, 0.2f, 0.2f, 0.2f);
-  glUniform3f(uMat_Kd, 0.6f, 0.6f, 0.6f);
-  glUniform3f(uMat_Ks, 0.9f, 0.9f, 0.9f);
-  glUniform1f(uMat_Shininess, 32.0f);
-
-  // Definir luz ambiente/difusa/especular (intensidades estáticas)
-  glUniform3f(uLight_La, 0.1f, 0.1f, 0.1f);
-  glUniform3f(uLight_Ld, 0.8f, 0.8f, 0.8f);
-  glUniform3f(uLight_Ls, 1.0f, 1.0f, 1.0f);
-
-  // Estado dos inputs para interação
+  // State for inputs
   InputState input;
 
-  // Tempo para rotação da luz
-
-  // Criar um shader simples para desenhar a fonte de luz
-  GLuint lightProg =
-      linkProgramFromFiles("shaders/simple.vert", "shaders/simple.frag");
-  if (!lightProg) {
-    std::fprintf(stderr, "Shaders não compilados\n");
-    return -1;
-  }
-  GLint uLightMVP = getUniform(lightProg, "MVP");
-  GLint uLightColor = getUniform(lightProg, "LightColor");
-
   size_t lightIndexCount = 0;
-  GLuint lightVAO = setupLightSphere(lightIndexCount);
+  GLuint lightVAO = setupLightBox(lightIndexCount);
 
-  glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // Cor de fundo
+  glClearColor(0.1f, 0.1f, 0.1f, 1.0f); // Dark gray background
 
-  glEnable(GL_DEPTH_TEST); // Necessário para profundidade
+  glEnable(GL_DEPTH_TEST); // Enable depth testing for 3D effect
+
+  // Configure model transform
+  modelTransform.setLocalScale(glm::vec3(baseScale));
+  modelTransform.setLocalPosition(-center * baseScale); // Center the model
+  modelTransform.computeModelMatrix();
 
   while (!glfwWindowShouldClose(win)) {
+    // Per-frame time logic
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
+    // Read user input
     processInput(win, input);
 
+    // Clear screen for next frame
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Atualizar ângulo da luz se não estiver pausada
+    // Update light position angle if not paused
     if (!input.lightPaused) {
-      input.lightAngle +=
-          input.lightRotationSpeed * 0.01f; // Ajustar velocidade
+      input.lightAngle += input.lightRotationSpeed * 0.01f;
     }
 
-    // Atualizar câmera/projeção a cada frame (lida com redimensionamento)
+    // Setup camera and projection (handles window resize)
     int fbw, fbh;
     glfwGetFramebufferSize(win, &fbw, &fbh);
     float aspect = (fbh == 0) ? 1.0f : (float)fbw / (float)fbh;
-    glm::vec3 camPos(0.0f, 0.0f, 2.5f);
-    glm::mat4 view =
-        glm::lookAt(camPos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+    // Use Camera class for view matrix
+    glm::mat4 view = camera.GetViewMatrix();
+    // Create perspective projection (45 degree field of view)
     glm::mat4 proj =
-        glm::perspective(glm::radians(45.0f), aspect, 0.01f, 100.0f);
+        glm::perspective(glm::radians(camera.Zoom), aspect, 0.01f, 100.0f);
 
-    // Construir transformação do modelo com base nos inputs
-    glm::mat4 model(1.0f);
-    // Translação controlada pelo utilizador
-    model = glm::translate(model, input.trans);
-    // Rotação (espera radianos)
-    model = glm::rotate(model, input.yaw, glm::vec3(0, 1, 0));
-    model = glm::rotate(model, input.pitch, glm::vec3(1, 0, 0));
-    // Escala para tamanho normalizado e centralizar
-    model = glm::scale(model, glm::vec3(baseScale));
-    model = glm::translate(model, -center);
+    // --- Draw Deer ---
+    // Update model matrix from Transform class
+    modelTransform.computeModelMatrix();
+    glm::mat4 model = modelTransform.getModelMatrix();
 
-    // Matrizes para o shader
+    // Calculate transformation matrices for shader
     glm::mat4 modelView = view * model;
+    // Model-View-Projection matrix
     glm::mat4 MVP = proj * modelView;
+    // Normal matrix for lighting calculations
     glm::mat3 normalMatrix = glm::mat3(glm::transpose(glm::inverse(modelView)));
-    glUniformMatrix4fv(uModelView, 1, GL_FALSE, glm::value_ptr(modelView));
-    glUniformMatrix4fv(uMVP, 1, GL_FALSE, glm::value_ptr(MVP));
-    glUniformMatrix3fv(uNormalMat, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 
-    // Luz pontual rodando em círculo à volta do veado
-    float lightRadius = 2.0f; // Distância da origem
+    // Activate shader
+    phongShader.use();
+
+    // Send matrices to shader
+    phongShader.setMat4("ModelViewMatrix", modelView);
+    phongShader.setMat4("MVP", MVP);
+    phongShader.setMat3("NormalMatrix", normalMatrix);
+
+    // Calculate light position orbiting around the model
+    float lightRadius = 2.0f; // Distance from center
     glm::vec3 lightPos(lightRadius * std::cos(input.lightAngle),
-                       1.0f, // Altura fixa
+                       2.0f, // Higher light for better floor shadow/lighting
                        lightRadius * std::sin(input.lightAngle));
-    glm::vec4 lightPosEye =
-        view * glm::vec4(lightPos, 1.0f); // Converter para coordenadas de olho
-    glUniform4f(uLight_Position, lightPosEye.x, lightPosEye.y, lightPosEye.z,
-                lightPosEye.w);
+    // Convert light position to camera space
+    glm::vec4 lightPosEye = view * glm::vec4(lightPos, 1.0f);
 
-    deerMesh->Draw(prog);
+    phongShader.setVec4("Light.Position", lightPosEye);
+    phongShader.setVec3("Light.La", 0.1f, 0.1f, 0.1f);
+    phongShader.setVec3("Light.Ld", 0.8f, 0.8f, 0.8f);
+    phongShader.setVec3("Light.Ls", 1.0f, 1.0f, 1.0f);
 
-    // Desenhar a fonte de luz como uma pequena esfera
-    glUseProgram(lightProg);
+    // Send material values to shader (loaded from .mtl or default)
+    phongShader.setVec3("Material.Ka", deerMaterial.Ka);
+    phongShader.setVec3("Material.Kd", deerMaterial.Kd);
+    phongShader.setVec3("Material.Ks", deerMaterial.Ks);
+    phongShader.setFloat("Material.Shininess", deerMaterial.Ns);
+
+    // Blinn-Phong toggle
+    phongShader.setBool("blinn", input.blinn);
+
+    deerMesh->Draw(phongShader.ID);
+
+    // Draw light source as small yellow sphere
+    lightShader.use();
     glm::mat4 lightModel = glm::translate(glm::mat4(1.0f), lightPos);
     glm::mat4 lightMVP = proj * view * lightModel;
-    glUniformMatrix4fv(uLightMVP, 1, GL_FALSE, glm::value_ptr(lightMVP));
-    glUniform3f(uLightColor, 1.0f, 1.0f, 0.0f); // Cor amarela/brilhante
+    lightShader.setMat4("MVP", lightMVP);
+    lightShader.setVec3("LightColor", 1.0f, 1.0f, 0.0f); // Yellow color
+
     glBindVertexArray(lightVAO);
     glDrawElements(GL_TRIANGLES, (GLsizei)lightIndexCount, GL_UNSIGNED_INT, 0);
 
-    // Voltar ao shader Phong para o próximo frame
-    glUseProgram(prog);
-
+    // Display rendered image on screen
     glfwSwapBuffers(win);
+    // Handle window events (close, resize, etc.)
     glfwPollEvents();
   }
 
+  // Clean up memory
   delete deerMesh;
+  // Close OpenGL window and cleanup
   glfwTerminate();
 }
